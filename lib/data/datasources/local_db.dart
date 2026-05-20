@@ -7,9 +7,10 @@ import 'package:sqflite/sqflite.dart';
 /// - v1: habits, completions, reminders, settings.
 /// - v2: agrega habit_insights (cache de análisis IA por hábito).
 /// - v3: reemplaza `reminders` (1 por hábito) por `habit_reminders` (N).
+/// - v4: agrega `llm_cloud_usage` (tracking del free tier de Gemini API).
 class LocalDb {
   static const _dbName = 'habits_app.db';
-  static const _dbVersion = 3;
+  static const _dbVersion = 4;
 
   Database? _db;
 
@@ -77,6 +78,7 @@ class LocalDb {
         ''');
 
         await _createHabitInsights(db);
+        await _createLlmCloudUsage(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -85,7 +87,22 @@ class LocalDb {
         if (oldVersion < 3) {
           await _migrateRemindersToHabitReminders(db);
         }
+        if (oldVersion < 4) {
+          await _createLlmCloudUsage(db);
+        }
       },
+    );
+  }
+
+  Future<void> _createLlmCloudUsage(Database db) async {
+    await db.execute('''
+      CREATE TABLE llm_cloud_usage (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp_ms INTEGER NOT NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_llm_cloud_usage_ts ON llm_cloud_usage(timestamp_ms);',
     );
   }
 

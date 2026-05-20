@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../app/di/injector.dart';
+import '../../domain/llm/llm_provider.dart';
 import 'bloc/coach_bloc.dart';
 import 'widgets/chat_bubble.dart';
 import 'widgets/coach_availability_banner.dart';
@@ -213,17 +215,32 @@ class _PrivacyBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final provider = Injector.instance.activeLlmProvider;
+    final tagline = switch (provider.tier) {
+      LlmTier.onDevice => 'on-device · tus hábitos no salen del teléfono',
+      LlmTier.cloud => 'nube · enviado a Google AI Studio',
+    };
+    final icon = switch (provider.tier) {
+      LlmTier.onDevice => Icons.smartphone,
+      LlmTier.cloud => Icons.cloud,
+    };
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       color: cs.surfaceContainer,
-      child: Text(
-        'On-device. Tus hábitos no salen del teléfono.',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 11,
-          color: cs.onSurfaceVariant,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 12, color: cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '${provider.displayName} · $tagline',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

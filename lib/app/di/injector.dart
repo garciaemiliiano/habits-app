@@ -1,7 +1,11 @@
 import 'package:flutter/widgets.dart';
 
+import 'dart:async';
+
+import '../../data/datasources/llm_usage_tracker.dart';
 import '../../data/datasources/local_db.dart';
 import '../../data/datasources/notifications_datasource.dart';
+import '../../data/llm/gemini_cloud_provider.dart';
 import '../../data/llm/gemini_nano_provider.dart';
 import '../../data/repositories/coach_repository_impl.dart';
 import '../../data/repositories/completions_repository_impl.dart';
@@ -115,11 +119,29 @@ class Injector {
     getHabitStats: getHabitStats,
   );
 
-  // ── IA on-device ────────────────────────────────────────────────────
-  late final LlmProvider llmProvider = GeminiNanoProvider();
+  // ── IA ──────────────────────────────────────────────────────────────
+  late final LlmUsageTracker llmUsageTracker = LlmUsageTracker(_localDb);
+
+  late final List<LlmProvider> llmProviders = [
+    GeminiNanoProvider(),
+    GeminiCloudProvider(
+      resolveApiKey: () => appPreferences.geminiApiKey,
+      onRequestSent: () => unawaited(llmUsageTracker.recordRequest()),
+    ),
+  ];
+
+  /// Resuelve el provider activo en runtime leyendo prefs. Devuelve
+  /// el primero como fallback si el id guardado no matchea.
+  LlmProvider get activeLlmProvider {
+    final id = appPreferences.llmProviderId;
+    return llmProviders.firstWhere(
+      (p) => p.id == id,
+      orElse: () => llmProviders.first,
+    );
+  }
 
   late final CoachRepository coachRepository = CoachRepositoryImpl(
-    resolveActive: () => llmProvider,
+    resolveActive: () => activeLlmProvider,
   );
 
   late final HabitInsightsRepository habitInsightsRepository =

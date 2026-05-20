@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/utils/error_sanitizer.dart';
 import '../../../domain/entities/coach_message.dart';
 import '../../../domain/repositories/coach_repository.dart';
 import '../../../domain/usecases/build_habits_context.dart';
@@ -94,7 +95,7 @@ class CoachBloc extends Bloc<CoachEvent, CoachState> {
     } catch (e) {
       emit(state.copyWith(
         thinking: false,
-        errorMessage: 'No se pudo responder: $e',
+        errorMessage: 'No se pudo responder: ${sanitizeApiError(e)}',
       ));
     }
   }

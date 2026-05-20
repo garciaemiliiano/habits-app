@@ -17,7 +17,7 @@ class BuildHabitsContext {
         _getOverallStats = getOverallStats,
         _prefs = prefs;
 
-  static const _templatePath = 'assets/prompts/coach_system.md';
+  static const _templatePath = 'assets/prompts/coach/system_base.md';
 
   // ignore: unused_field
   final GetAllHabits _getAllHabits;

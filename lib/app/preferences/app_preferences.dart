@@ -14,6 +14,8 @@ class AppPreferences extends ChangeNotifier {
   static const _kOled = 'oled';
   static const _kWeekStartsOn = 'week_starts_on';
   static const _kHeatmapMonths = 'heatmap_months';
+  static const _kLlmProviderId = 'llm_provider_id';
+  static const _kGeminiApiKey = 'gemini_api_key';
 
   ThemeMode _themeMode = ThemeMode.system;
   bool _oled = false;
@@ -21,12 +23,16 @@ class AppPreferences extends ChangeNotifier {
   // DateTime.weekday (1..7, lun..dom).
   int _weekStartsOn = 1;
   int _heatmapMonths = 6;
+  String _llmProviderId = 'gemini-nano';
+  String? _geminiApiKey;
 
   ThemeMode get themeMode => _themeMode;
   ThemeMode get materialThemeMode => _themeMode;
   bool get oled => _oled;
   int get weekStartsOn => _weekStartsOn;
   int get heatmapMonths => _heatmapMonths;
+  String get llmProviderId => _llmProviderId;
+  String? get geminiApiKey => _geminiApiKey;
 
   Future<void> load() async {
     final db = await _db.database;
@@ -43,6 +49,10 @@ class AppPreferences extends ChangeNotifier {
           _weekStartsOn = int.tryParse(value) ?? 1;
         case _kHeatmapMonths:
           _heatmapMonths = int.tryParse(value) ?? 6;
+        case _kLlmProviderId:
+          if (value.isNotEmpty) _llmProviderId = value;
+        case _kGeminiApiKey:
+          _geminiApiKey = value.isEmpty ? null : value;
       }
     }
     notifyListeners();
@@ -69,6 +79,22 @@ class AppPreferences extends ChangeNotifier {
   Future<void> setHeatmapMonths(int months) async {
     _heatmapMonths = months;
     await _put(_kHeatmapMonths, months.toString());
+    notifyListeners();
+  }
+
+  Future<void> setLlmProviderId(String id) async {
+    if (id == _llmProviderId) return;
+    _llmProviderId = id;
+    await _put(_kLlmProviderId, id);
+    notifyListeners();
+  }
+
+  Future<void> setGeminiApiKey(String? key) async {
+    final cleaned = key?.trim();
+    final next = (cleaned == null || cleaned.isEmpty) ? null : cleaned;
+    if (next == _geminiApiKey) return;
+    _geminiApiKey = next;
+    await _put(_kGeminiApiKey, next ?? '');
     notifyListeners();
   }
 

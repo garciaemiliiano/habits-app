@@ -7,13 +7,19 @@ class CoachRepositoryImpl implements CoachRepository {
   CoachRepositoryImpl({required LlmProvider Function() resolveActive})
       : _resolveActive = resolveActive;
 
+  // Templates por feature/tier. Se cachean por path en `_templateCache`.
+  static const _coachNanoPath = 'assets/prompts/coach/system_nano.md';
+  static const _coachCloudPath = 'assets/prompts/coach/system_cloud.md';
+  static const _insightBasePath =
+      'assets/prompts/habit_insight/system_base.md';
+  static const _insightNanoPath =
+      'assets/prompts/habit_insight/system_nano.md';
+  static const _insightCloudPath =
+      'assets/prompts/habit_insight/system_cloud.md';
   static const _suggestionsTemplatePath = 'assets/prompts/coach_suggestions.md';
-  static const _insightTemplatePath = 'assets/prompts/habit_insight.md';
 
   final LlmProvider Function() _resolveActive;
-
-  String? _cachedSuggestionsTemplate;
-  String? _cachedInsightTemplate;
+  final Map<String, String> _templateCache = {};
 
   LlmProvider get _active => _resolveActive();
 
@@ -27,9 +33,12 @@ class CoachRepositoryImpl implements CoachRepository {
   Future<String> ask({
     required String prompt,
     required String systemInstruction,
-  }) {
+  }) async {
+    final tierGuide = await _coachTierGuide(_active.tier);
     final composed = '''
 $systemInstruction
+
+$tierGuide
 
 Pregunta del usuario:
 $prompt
@@ -44,11 +53,7 @@ $prompt
     required String systemInstruction,
   }) async {
     try {
-      final template = await _loadTemplate(
-        _suggestionsTemplatePath,
-        cached: () => _cachedSuggestionsTemplate,
-        setCache: (v) => _cachedSuggestionsTemplate = v,
-      );
+      final template = await _loadTemplate(_suggestionsTemplatePath);
       final body = template.replaceAll('{{last_answer}}', lastAnswer);
       final composed = '$systemInstruction\n\n$body'.trim();
       final raw = await _active.generate(
@@ -77,16 +82,16 @@ $prompt
     required String habitFrequency,
     required String habitStatsSummary,
   }) async {
-    final template = await _loadTemplate(
-      _insightTemplatePath,
-      cached: () => _cachedInsightTemplate,
-      setCache: (v) => _cachedInsightTemplate = v,
-    );
-    final composed = template
+    final base = await _loadTemplate(_insightBasePath);
+    final tierGuide = await _insightTierGuide(_active.tier);
+
+    final filledBase = base
         .replaceAll('{{habit_name}}', habitName)
         .replaceAll('{{habit_description}}', habitDescription)
         .replaceAll('{{habit_frequency}}', habitFrequency)
         .replaceAll('{{habit_stats}}', habitStatsSummary);
+
+    final composed = '$filledBase\n\n$tierGuide'.trim();
     final raw = await _active.generate(
       prompt: composed,
       temperature: 0.5,
@@ -95,15 +100,27 @@ $prompt
     return raw.trim();
   }
 
-  Future<String> _loadTemplate(
-    String path, {
-    required String? Function() cached,
-    required void Function(String) setCache,
-  }) async {
-    final hit = cached();
+  Future<String> _coachTierGuide(LlmTier tier) {
+    final path = switch (tier) {
+      LlmTier.onDevice => _coachNanoPath,
+      LlmTier.cloud => _coachCloudPath,
+    };
+    return _loadTemplate(path);
+  }
+
+  Future<String> _insightTierGuide(LlmTier tier) {
+    final path = switch (tier) {
+      LlmTier.onDevice => _insightNanoPath,
+      LlmTier.cloud => _insightCloudPath,
+    };
+    return _loadTemplate(path);
+  }
+
+  Future<String> _loadTemplate(String path) async {
+    final hit = _templateCache[path];
     if (hit != null) return hit;
     final loaded = await rootBundle.loadString(path);
-    setCache(loaded);
+    _templateCache[path] = loaded;
     return loaded;
   }
 }

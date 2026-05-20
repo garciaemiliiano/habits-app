@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/utils/error_sanitizer.dart';
 import '../../../domain/entities/habit_insight.dart';
 import '../../../domain/repositories/coach_repository.dart';
 import '../../../domain/usecases/generate_habit_insight.dart';
@@ -39,7 +40,7 @@ class HabitInsightBloc extends Bloc<HabitInsightEvent, HabitInsightState> {
     } catch (e) {
       emit(state.copyWith(
         loading: false,
-        errorMessage: e.toString(),
+        errorMessage: sanitizeApiError(e),
       ));
     }
   }
@@ -59,7 +60,7 @@ class HabitInsightBloc extends Bloc<HabitInsightEvent, HabitInsightState> {
     } catch (e) {
       emit(state.copyWith(
         loading: false,
-        errorMessage: 'No se pudo generar el análisis: $e',
+        errorMessage: 'No se pudo generar el análisis: ${sanitizeApiError(e)}',
       ));
     }
   }

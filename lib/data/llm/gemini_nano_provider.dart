@@ -15,6 +15,9 @@ class GeminiNanoProvider implements LlmProvider {
   String get id => providerId;
 
   @override
+  LlmTier get tier => LlmTier.onDevice;
+
+  @override
   String get displayName => 'Gemini Nano';
 
   @override
