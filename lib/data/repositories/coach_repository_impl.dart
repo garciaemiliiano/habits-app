@@ -92,12 +92,31 @@ $prompt
         .replaceAll('{{habit_stats}}', habitStatsSummary);
 
     final composed = '$filledBase\n\n$tierGuide'.trim();
+    // Nano on-device tiene un cap hard de 256. Cloud (Flash) acepta más,
+    // así que ahí le damos 512 para que no corte el punto 5.
+    final maxTokens = _active.tier == LlmTier.onDevice ? 256 : 512;
     final raw = await _active.generate(
       prompt: composed,
       temperature: 0.5,
-      maxOutputTokens: 256,
+      maxOutputTokens: maxTokens,
     );
-    return raw.trim();
+    return _trimIncompleteTail(raw.trim());
+  }
+
+  /// Si el modelo se quedó sin tokens y cortó a mitad de frase, recortamos
+  /// hasta el último signo de cierre (. ! ? :) para no mostrar texto
+  /// truncado al usuario. Si no hay ningún signo de cierre, devolvemos
+  /// el texto tal cual.
+  String _trimIncompleteTail(String s) {
+    if (s.isEmpty) return s;
+    final lastChar = s[s.length - 1];
+    const closers = {'.', '!', '?', ':', '”', '"', ')'};
+    if (closers.contains(lastChar)) return s;
+    final match = RegExp(r'[.!?]')
+        .allMatches(s)
+        .fold<int>(-1, (acc, m) => m.end);
+    if (match <= 0) return s;
+    return s.substring(0, match).trim();
   }
 
   Future<String> _coachTierGuide(LlmTier tier) {

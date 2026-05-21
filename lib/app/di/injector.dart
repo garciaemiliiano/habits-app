@@ -105,6 +105,7 @@ class Injector {
   late final GetHabitsForToday getHabitsForToday = GetHabitsForToday(
     habits: habitsRepository,
     completions: completionsRepository,
+    reminders: remindersRepository,
     prefs: appPreferences,
   );
 
@@ -158,6 +159,8 @@ class Injector {
     insights: habitInsightsRepository,
     getHabitStats: getHabitStats,
     habits: habitsRepository,
+    reminders: remindersRepository,
+    completions: completionsRepository,
   );
 
   /// Wrapper para `main.dart`.

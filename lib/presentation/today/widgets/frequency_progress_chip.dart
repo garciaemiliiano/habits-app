@@ -6,11 +6,15 @@ class FrequencyProgressChip extends StatelessWidget {
     required this.completed,
     required this.target,
     required this.color,
+    this.periodLabel = 'esta semana',
   });
 
   final int completed;
   final int target;
   final Color color;
+
+  /// Texto que va al lado del ratio, ej. "esta semana", "este mes", "hoy".
+  final String periodLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,7 @@ class FrequencyProgressChip extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            '$completed/$target esta semana',
+            '$completed/$target $periodLabel',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,

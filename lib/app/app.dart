@@ -2,7 +2,6 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../presentation/coach/bloc/coach_bloc.dart';
 import '../presentation/habits/bloc/habits_bloc.dart';
 import '../presentation/shell/main_shell.dart';
 import '../presentation/stats/bloc/stats_bloc.dart';
@@ -52,12 +51,6 @@ class _HabitsAppState extends State<HabitsApp> {
           create: (_) => StatsBloc(
             getOverallStats: injector.getOverallStats,
           )..add(const StatsLoadRequested()),
-        ),
-        BlocProvider(
-          create: (_) => CoachBloc(
-            coach: injector.coachRepository,
-            buildContext: injector.buildHabitsContext,
-          )..add(const CoachAvailabilityChecked()),
         ),
       ],
       child: AnimatedBuilder(

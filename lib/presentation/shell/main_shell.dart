@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../coach/coach_page.dart';
 import '../habits/habits_page.dart';
 import '../settings/settings_page.dart';
 import '../today/today_page.dart';
@@ -8,8 +7,8 @@ import '../today/today_page.dart';
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
-  /// Permite a otras pantallas saltar a una tab (ej. Today → Coach con
-  /// un prompt prellenado). El shell escucha este notifier y rebuildea.
+  /// Permite a otras pantallas saltar a una tab. El shell escucha este
+  /// notifier y rebuildea.
   static final ValueNotifier<int> tabIndex = ValueNotifier<int>(0);
 
   @override
@@ -17,18 +16,13 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  // Stats temporalmente oculta — se rehabilita agregándola al array.
+  // Stats y Coach están ocultos — se rehabilitan agregándolos al array.
   static const _tabs = <_TabSpec>[
     _TabSpec(label: 'Hoy', icon: Icons.today_outlined, selected: Icons.today),
     _TabSpec(
       label: 'Hábitos',
       icon: Icons.list_alt_outlined,
       selected: Icons.list_alt,
-    ),
-    _TabSpec(
-      label: 'Coach',
-      icon: Icons.auto_awesome_outlined,
-      selected: Icons.auto_awesome,
     ),
     _TabSpec(
       label: 'Ajustes',
@@ -40,7 +34,6 @@ class _MainShellState extends State<MainShell> {
   static const _pages = <Widget>[
     TodayPage(),
     HabitsPage(),
-    CoachPage(),
     SettingsPage(),
   ];
 

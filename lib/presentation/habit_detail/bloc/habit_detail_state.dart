@@ -9,6 +9,8 @@ class HabitDetailState extends Equatable {
     required this.habit,
     required this.stats,
     required this.heatmapMonths,
+    required this.todayCompleted,
+    required this.todayTarget,
     this.errorMessage,
   });
 
@@ -18,6 +20,8 @@ class HabitDetailState extends Equatable {
         habit = null,
         stats = null,
         heatmapMonths = 6,
+        todayCompleted = 0,
+        todayTarget = 1,
         errorMessage = null;
 
   final HabitDetailStatus status;
@@ -25,7 +29,17 @@ class HabitDetailState extends Equatable {
   final Habit? habit;
   final HabitStats? stats;
   final int heatmapMonths;
+
+  /// Cuántas veces se marcó hoy.
+  final int todayCompleted;
+
+  /// Cuántas veces "debería" marcarse hoy (= cantidad de reminders enabled
+  /// para este weekday, mínimo 1).
+  final int todayTarget;
+
   final String? errorMessage;
+
+  bool get todayMet => todayCompleted >= todayTarget;
 
   HabitDetailState copyWith({
     HabitDetailStatus? status,
@@ -33,6 +47,8 @@ class HabitDetailState extends Equatable {
     Habit? habit,
     HabitStats? stats,
     int? heatmapMonths,
+    int? todayCompleted,
+    int? todayTarget,
     String? errorMessage,
   }) {
     return HabitDetailState(
@@ -41,11 +57,21 @@ class HabitDetailState extends Equatable {
       habit: habit ?? this.habit,
       stats: stats ?? this.stats,
       heatmapMonths: heatmapMonths ?? this.heatmapMonths,
+      todayCompleted: todayCompleted ?? this.todayCompleted,
+      todayTarget: todayTarget ?? this.todayTarget,
       errorMessage: errorMessage,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [status, habitId, habit, stats, heatmapMonths, errorMessage];
+  List<Object?> get props => [
+        status,
+        habitId,
+        habit,
+        stats,
+        heatmapMonths,
+        todayCompleted,
+        todayTarget,
+        errorMessage,
+      ];
 }

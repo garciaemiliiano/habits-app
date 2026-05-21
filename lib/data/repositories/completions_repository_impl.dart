@@ -1,5 +1,3 @@
-import 'package:sqflite/sqflite.dart';
-
 import '../../core/utils/date_range.dart';
 import '../../domain/entities/completion.dart';
 import '../../domain/repositories/completions_repository.dart';
@@ -16,14 +14,21 @@ class CompletionsRepositoryImpl implements CompletionsRepository {
     required String habitId,
     required DateTime day,
   }) async {
+    return (await countOn(habitId: habitId, day: day)) > 0;
+  }
+
+  @override
+  Future<int> countOn({
+    required String habitId,
+    required DateTime day,
+  }) async {
     final db = await _db.database;
-    final rows = await db.query(
-      'completions',
-      where: 'habit_id = ? AND day_key = ?',
-      whereArgs: [habitId, DateRange.dayKeyOf(day)],
-      limit: 1,
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS n FROM completions '
+      'WHERE habit_id = ? AND day_key = ?;',
+      [habitId, DateRange.dayKeyOf(day)],
     );
-    return rows.isNotEmpty;
+    return (rows.first['n'] as num).toInt();
   }
 
   @override
@@ -34,7 +39,6 @@ class CompletionsRepositoryImpl implements CompletionsRepository {
   }) async {
     final db = await _db.database;
     final fromKey = DateRange.dayKeyOf(from);
-    // `to` es exclusivo: pasamos to-1 día como inclusive.
     final toExclusive = to.subtract(const Duration(days: 1));
     final toKey = DateRange.dayKeyOf(toExclusive);
     final rows = await db.rawQuery(
@@ -59,7 +63,7 @@ class CompletionsRepositoryImpl implements CompletionsRepository {
       'completions',
       where: 'habit_id = ? AND day_key BETWEEN ? AND ?',
       whereArgs: [habitId, fromKey, toKey],
-      orderBy: 'day_ms ASC',
+      orderBy: 'completed_at ASC',
     );
     return rows.map((r) => CompletionDto.fromMap(r).toEntity()).toList();
   }
@@ -71,25 +75,25 @@ class CompletionsRepositoryImpl implements CompletionsRepository {
       'completions',
       where: 'habit_id = ?',
       whereArgs: [habitId],
-      orderBy: 'day_ms ASC',
+      orderBy: 'completed_at ASC',
     );
     return rows.map((r) => CompletionDto.fromMap(r).toEntity()).toList();
   }
 
   @override
-  Future<void> add({required String habitId, required DateTime day}) async {
+  Future<void> add({
+    required String habitId,
+    required DateTime day,
+    String? reminderId,
+  }) async {
     final db = await _db.database;
     final dto = CompletionDto.create(
       habitId: habitId,
       day: day,
       now: DateTime.now(),
+      reminderId: reminderId,
     );
-    // INSERT OR IGNORE para no romper el unique (habit_id, day_key).
-    await db.insert(
-      'completions',
-      dto.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.ignore,
-    );
+    await db.insert('completions', dto.toMap());
   }
 
   @override
@@ -102,6 +106,28 @@ class CompletionsRepositoryImpl implements CompletionsRepository {
       'completions',
       where: 'habit_id = ? AND day_key = ?',
       whereArgs: [habitId, DateRange.dayKeyOf(day)],
+    );
+  }
+
+  @override
+  Future<void> removeLastOn({
+    required String habitId,
+    required DateTime day,
+  }) async {
+    final db = await _db.database;
+    final rows = await db.query(
+      'completions',
+      columns: ['id'],
+      where: 'habit_id = ? AND day_key = ?',
+      whereArgs: [habitId, DateRange.dayKeyOf(day)],
+      orderBy: 'completed_at DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    await db.delete(
+      'completions',
+      where: 'id = ?',
+      whereArgs: [rows.first['id']],
     );
   }
 }

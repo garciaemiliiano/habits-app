@@ -47,7 +47,17 @@ class TodayBloc extends Bloc<TodayEvent, TodayState> {
   Future<void> _onToggled(
       TodayHabitToggled event, Emitter<TodayState> emit) async {
     try {
-      await _toggleCompletion(habitId: event.habitId, day: state.selectedDate);
+      final status = state.habits.firstWhere(
+        (h) => h.habit.id == event.habitId,
+        orElse: () => state.habits.isEmpty
+            ? throw StateError('No habits loaded')
+            : state.habits.first,
+      );
+      await _toggleCompletion(
+        habitId: event.habitId,
+        day: state.selectedDate,
+        target: status.todayTarget,
+      );
       await _fetch(emit);
     } catch (e) {
       emit(state.copyWith(

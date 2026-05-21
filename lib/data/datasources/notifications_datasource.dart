@@ -1,8 +1,57 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../domain/entities/habit.dart';
 import '../../domain/entities/reminder_config.dart';
+import '../models/completion_dto.dart';
+import 'local_db.dart';
+
+/// Action id del botón "Hecho" en la notificación. Constante para que el
+/// handler de background pueda matchearlo sin depender del datasource.
+const String kMarkDoneActionId = 'mark_done';
+
+/// Separador interno del payload `<habitId>|<reminderId>`. Si no hay
+/// reminderId se manda `<habitId>|` con la segunda parte vacía.
+const String _payloadSeparator = '|';
+
+String _buildPayload({required String habitId, required String reminderId}) =>
+    '$habitId$_payloadSeparator$reminderId';
+
+({String habitId, String? reminderId}) _parsePayload(String payload) {
+  final idx = payload.indexOf(_payloadSeparator);
+  if (idx < 0) return (habitId: payload, reminderId: null);
+  final habitId = payload.substring(0, idx);
+  final rest = payload.substring(idx + 1);
+  return (habitId: habitId, reminderId: rest.isEmpty ? null : rest);
+}
+
+/// Handler que corre en un isolate aparte cuando el usuario toca el
+/// botón "Hecho" de la notificación con la app cerrada o en background.
+/// Tiene que ser top-level y estar anotado con `vm:entry-point` para que
+/// el AOT no lo tree-shake.
+@pragma('vm:entry-point')
+Future<void> notificationBackgroundHandler(NotificationResponse resp) async {
+  if (resp.actionId != kMarkDoneActionId) return;
+  final payload = resp.payload;
+  if (payload == null || payload.isEmpty) return;
+
+  WidgetsFlutterBinding.ensureInitialized();
+  final parsed = _parsePayload(payload);
+  final db = LocalDb();
+  try {
+    final database = await db.database;
+    final dto = CompletionDto.create(
+      habitId: parsed.habitId,
+      day: DateTime.now(),
+      now: DateTime.now(),
+      reminderId: parsed.reminderId,
+    );
+    await database.insert('completions', dto.toMap());
+  } finally {
+    await db.close();
+  }
+}
 
 /// Wrap de `flutter_local_notifications` para reminders de hábitos.
 /// Una notificación por (hábito, día de la semana habilitado).
@@ -25,12 +74,9 @@ class NotificationsDatasource {
     );
     await _plugin.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: (resp) {
-        final payload = resp.payload;
-        if (payload != null && _onTap != null) {
-          _onTap(payload);
-        }
-      },
+      onDidReceiveNotificationResponse: _handleResponse,
+      onDidReceiveBackgroundNotificationResponse:
+          notificationBackgroundHandler,
     );
 
     // Crear el canal de notificaciones explícitamente para Android 8+.
@@ -45,6 +91,35 @@ class NotificationsDatasource {
         importance: Importance.high,
       ),
     );
+  }
+
+  Future<void> _handleResponse(NotificationResponse resp) async {
+    final payload = resp.payload;
+    if (payload == null || payload.isEmpty) return;
+    final parsed = _parsePayload(payload);
+
+    if (resp.actionId == kMarkDoneActionId) {
+      // El usuario tocó "Hecho" con la app en foreground. Insertamos el
+      // completion también acá para no depender del background handler.
+      final db = LocalDb();
+      try {
+        final database = await db.database;
+        final dto = CompletionDto.create(
+          habitId: parsed.habitId,
+          day: DateTime.now(),
+          now: DateTime.now(),
+          reminderId: parsed.reminderId,
+        );
+        await database.insert('completions', dto.toMap());
+      } finally {
+        // Dejamos abierta — comparte la conexión con el resto de la app.
+      }
+      return;
+    }
+
+    if (_onTap != null) {
+      _onTap(parsed.habitId);
+    }
   }
 
   Future<bool> requestPermissions() async {
@@ -95,13 +170,21 @@ class NotificationsDatasource {
             priority: Priority.high,
             color: habit.color,
             colorized: true,
+            actions: const [
+              AndroidNotificationAction(
+                kMarkDoneActionId,
+                'Hecho',
+                showsUserInterface: false,
+                cancelNotification: true,
+              ),
+            ],
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-        payload: habit.id,
+        payload: _buildPayload(habitId: habit.id, reminderId: reminder.id),
       );
     }
   }

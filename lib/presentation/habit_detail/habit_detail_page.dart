@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../app/di/injector.dart';
+import '../../domain/entities/habit.dart';
 import '../habit_edit/habit_edit_page.dart';
 import '../habits/bloc/habits_bloc.dart';
 import '../shared/widgets/confirm_dialog.dart';
@@ -27,106 +31,167 @@ class HabitDetailPage extends StatelessWidget {
         habits: injector.habitsRepository,
         getHabitStats: injector.getHabitStats,
         toggleCompletion: injector.toggleCompletion,
+        completions: injector.completionsRepository,
+        reminders: injector.remindersRepository,
       )..add(HabitDetailLoadRequested(habitId)),
       child: const _HabitDetailView(),
     );
   }
 }
 
-class _HabitDetailView extends StatelessWidget {
+class _HabitDetailView extends StatefulWidget {
   const _HabitDetailView();
 
   @override
+  State<_HabitDetailView> createState() => _HabitDetailViewState();
+}
+
+class _HabitDetailViewState extends State<_HabitDetailView> {
+  late final ConfettiController _confetti;
+
+  @override
+  void initState() {
+    super.initState();
+    _confetti = ConfettiController(duration: const Duration(seconds: 1));
+  }
+
+  @override
+  void dispose() {
+    _confetti.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocBuilder<HabitDetailBloc, HabitDetailState>(
+    return BlocConsumer<HabitDetailBloc, HabitDetailState>(
+      listenWhen: (prev, curr) => !prev.todayMet && curr.todayMet,
+      listener: (context, state) => _confetti.play(),
       builder: (context, state) {
         final habit = state.habit;
         return Scaffold(
           appBar: AppBar(
             title: Text(habit?.name ?? 'Detalle'),
-            actions: habit == null
-                ? []
-                : [
-                    IconButton(
-                      tooltip: 'Editar',
-                      onPressed: () async {
-                        final reminders = await Injector.instance
-                            .remindersRepository
-                            .getForHabit(habit.id);
-                        if (!context.mounted) return;
-                        final updated = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(
-                            builder: (_) => HabitEditPage(
-                              existing: habit,
-                              existingReminders: reminders,
-                            ),
-                          ),
-                        );
-                        if (updated == true && context.mounted) {
-                          context
-                              .read<HabitDetailBloc>()
-                              .add(HabitDetailLoadRequested(habit.id));
-                          _refreshAll(context);
-                        }
-                      },
-                      icon: const Icon(Icons.edit),
-                    ),
-                    PopupMenuButton<_DetailAction>(
-                      onSelected: (a) async {
-                        switch (a) {
-                          case _DetailAction.archive:
-                            context.read<HabitsBloc>().add(
-                                  HabitsArchiveToggled(
-                                      habitId: habit.id,
-                                      archived: !habit.archived),
-                                );
-                            if (context.mounted) Navigator.of(context).pop();
-                          case _DetailAction.delete:
-                            final ok = await showConfirmDialog(
-                              context,
-                              title: 'Eliminar hábito',
-                              message:
-                                  'Se borrará "${habit.name}" y todo su historial.',
-                              confirmLabel: 'Eliminar',
-                              destructive: true,
-                            );
-                            if (ok && context.mounted) {
-                              context
-                                  .read<HabitsBloc>()
-                                  .add(HabitsDeleted(habit.id));
-                              Navigator.of(context).pop();
-                            }
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: _DetailAction.archive,
-                          child: Text(
-                            habit.archived ? 'Desarchivar' : 'Archivar',
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: _DetailAction.delete,
-                          child: Text('Eliminar'),
-                        ),
-                      ],
-                    ),
-                  ],
+            actions: habit == null ? [] : _buildActions(context, habit),
           ),
-          body: _buildBody(context, state),
-          floatingActionButton: habit == null
-              ? null
-              : FloatingActionButton.extended(
-                  onPressed: () => context.read<HabitDetailBloc>().add(
-                        HabitDetailCompletionToggled(DateTime.now()),
-                      ),
-                  icon: const Icon(Icons.check),
-                  label: const Text('Marcar hoy'),
-                  backgroundColor: habit.color,
-                  foregroundColor: Colors.white,
+          body: Stack(
+            children: [
+              _buildBody(context, state),
+              // Confetti centrado arriba para que caiga a la vista.
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confetti,
+                  blastDirection: math.pi / 2,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  emissionFrequency: 0.0,
+                  numberOfParticles: 40,
+                  maxBlastForce: 24,
+                  minBlastForce: 10,
+                  gravity: 0.3,
+                  shouldLoop: false,
+                  colors: [
+                    if (habit != null) habit.color,
+                    if (habit != null) habit.color.withValues(alpha: 0.7),
+                    Theme.of(context).colorScheme.tertiary,
+                    Theme.of(context).colorScheme.primary,
+                    Colors.amber,
+                  ],
                 ),
+              ),
+            ],
+          ),
+          floatingActionButton:
+              habit == null ? null : _buildFab(context, state, habit),
         );
       },
+    );
+  }
+
+  List<Widget> _buildActions(BuildContext context, Habit habit) {
+    return [
+      IconButton(
+        tooltip: 'Editar',
+        onPressed: () async {
+          final reminders = await Injector.instance.remindersRepository
+              .getForHabit(habit.id);
+          if (!context.mounted) return;
+          final updated = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => HabitEditPage(
+                existing: habit,
+                existingReminders: reminders,
+              ),
+            ),
+          );
+          if (updated == true && context.mounted) {
+            context
+                .read<HabitDetailBloc>()
+                .add(HabitDetailLoadRequested(habit.id));
+            _refreshAll(context);
+          }
+        },
+        icon: const Icon(Icons.edit),
+      ),
+      PopupMenuButton<_DetailAction>(
+        onSelected: (a) async {
+          switch (a) {
+            case _DetailAction.archive:
+              await Injector.instance.archiveHabit(
+                habitId: habit.id,
+                archived: !habit.archived,
+              );
+              if (context.mounted) {
+                _refreshAll(context);
+                Navigator.of(context).pop();
+              }
+            case _DetailAction.delete:
+              final ok = await showConfirmDialog(
+                context,
+                title: 'Eliminar hábito',
+                message:
+                    'Se borrará "${habit.name}" y todo su historial.',
+                confirmLabel: 'Eliminar',
+                destructive: true,
+              );
+              if (!ok) return;
+              await Injector.instance.deleteHabit(habit.id);
+              if (context.mounted) {
+                _refreshAll(context);
+                Navigator.of(context).pop();
+              }
+          }
+        },
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: _DetailAction.archive,
+            child: Text(habit.archived ? 'Desarchivar' : 'Archivar'),
+          ),
+          const PopupMenuItem(
+            value: _DetailAction.delete,
+            child: Text('Eliminar'),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Widget _buildFab(BuildContext context, HabitDetailState state, Habit habit) {
+    final met = state.todayMet;
+    final multi = state.todayTarget > 1;
+    final label = multi
+        ? '${state.todayCompleted}/${state.todayTarget} hoy'
+        : (met ? 'Hecho hoy' : 'Marcar hoy');
+    return FloatingActionButton.extended(
+      onPressed: met
+          ? null
+          : () => context.read<HabitDetailBloc>().add(
+                HabitDetailCompletionToggled(DateTime.now()),
+              ),
+      icon: Icon(met ? Icons.check_circle : Icons.check),
+      label: Text(label),
+      backgroundColor:
+          met ? habit.color.withValues(alpha: 0.4) : habit.color,
+      foregroundColor: Colors.white,
     );
   }
 
@@ -202,8 +267,14 @@ class _HabitDetailView extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           Text(
-            'Cumplimiento por semana',
+            'Días cumplidos por semana',
             style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(
+            'Cantidad de días que marcaste el hábito en cada una de las últimas 8 semanas (máx. 7).',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 8),
           Card(

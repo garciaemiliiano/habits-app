@@ -8,9 +8,11 @@ import 'package:sqflite/sqflite.dart';
 /// - v2: agrega habit_insights (cache de análisis IA por hábito).
 /// - v3: reemplaza `reminders` (1 por hábito) por `habit_reminders` (N).
 /// - v4: agrega `llm_cloud_usage` (tracking del free tier de Gemini API).
+/// - v5: permite N completions por (habit, día). Drop unique index +
+///   agrega `reminder_id` nullable para linkear con `habit_reminders`.
 class LocalDb {
   static const _dbName = 'habits_app.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 5;
 
   Database? _db;
 
@@ -58,11 +60,13 @@ class LocalDb {
             day_key INTEGER NOT NULL,
             day_ms INTEGER NOT NULL,
             completed_at INTEGER NOT NULL,
-            FOREIGN KEY (habit_id) REFERENCES habits(id) ON DELETE CASCADE
+            reminder_id TEXT,
+            FOREIGN KEY (habit_id) REFERENCES habits(id) ON DELETE CASCADE,
+            FOREIGN KEY (reminder_id) REFERENCES habit_reminders(id) ON DELETE SET NULL
           );
         ''');
         await db.execute(
-          'CREATE UNIQUE INDEX uq_completion_habit_day ON completions(habit_id, day_key);',
+          'CREATE INDEX idx_completions_habit_day ON completions(habit_id, day_key);',
         );
         await db.execute(
           'CREATE INDEX idx_completions_habit_day_ms ON completions(habit_id, day_ms);',
@@ -90,8 +94,28 @@ class LocalDb {
         if (oldVersion < 4) {
           await _createLlmCloudUsage(db);
         }
+        if (oldVersion < 5) {
+          await _migrateCompletionsToMultiPerDay(db);
+        }
       },
     );
+  }
+
+  /// Migración v4 → v5: dropea el unique index (habit_id, day_key) en
+  /// `completions` y agrega columna `reminder_id` nullable. Permite N
+  /// completions por día por hábito.
+  Future<void> _migrateCompletionsToMultiPerDay(Database db) async {
+    await db.execute('DROP INDEX IF EXISTS uq_completion_habit_day;');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_completions_habit_day ON completions(habit_id, day_key);',
+    );
+    final cols = await db.rawQuery("PRAGMA table_info('completions');");
+    final hasReminderId = cols.any((c) => c['name'] == 'reminder_id');
+    if (!hasReminderId) {
+      await db.execute(
+        'ALTER TABLE completions ADD COLUMN reminder_id TEXT;',
+      );
+    }
   }
 
   Future<void> _createLlmCloudUsage(Database db) async {

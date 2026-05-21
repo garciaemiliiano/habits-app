@@ -214,7 +214,11 @@ class _CachedView extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            MarkdownBody(data: insight.text),
+            // Mientras regenera, shimmerizamos el texto cacheado.
+            Skeletonizer(
+              enabled: loading,
+              child: MarkdownBody(data: insight.text),
+            ),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(

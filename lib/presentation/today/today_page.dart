@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
-import '../coach/bloc/coach_bloc.dart';
 import '../habit_detail/habit_detail_page.dart';
 import '../habit_edit/habit_edit_page.dart';
 import '../habits/bloc/habits_bloc.dart';
-import '../shell/main_shell.dart';
 import '../stats/bloc/stats_bloc.dart';
 import 'bloc/today_bloc.dart';
-import 'widgets/coach_teaser_card.dart';
 import 'widgets/empty_today_view.dart';
 import 'widgets/today_habit_tile.dart';
 
@@ -35,7 +32,6 @@ class TodayPage extends StatelessWidget {
             children: [
               _DateSelector(state: state),
               const SizedBox(height: 8),
-              _CoachTeaser(),
               Expanded(child: _buildBody(context, state)),
             ],
           ),
@@ -184,21 +180,3 @@ class _DateSelector extends StatelessWidget {
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 }
 
-class _CoachTeaser extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final available =
-        context.watch<CoachBloc>().state.available ?? false;
-    if (!available) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: CoachTeaserCard(
-        available: available,
-        onPromptTap: (text) {
-          context.read<CoachBloc>().add(CoachQuestionAsked(text));
-          MainShell.tabIndex.value = 3;
-        },
-      ),
-    );
-  }
-}

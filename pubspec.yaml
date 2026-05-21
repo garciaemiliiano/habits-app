@@ -45,6 +45,9 @@ dependencies:
   # Render de markdown en las respuestas del coach
   flutter_markdown_plus: ^1.0.7
 
+  # Confetti al cumplir el objetivo del día
+  confetti: ^0.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
